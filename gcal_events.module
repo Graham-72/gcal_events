@@ -395,9 +395,11 @@ function gcal_events_contents($which_block) {
   // #DESC#
 
   //Where your simplepie.inc is (mine's in the root for some reason)
-  if (!include_once(drupal_get_path('module', 'gcal_events') .'/simplepie.inc')) {
-    drupal_set_message('GCal Events: simplepie.inc not found!', 'error');
-    return;
+  if (!class_exists('SimplePie')) {
+    if (!include_once(drupal_get_path('module', 'gcal_events') .'/simplepie.inc')) {
+      drupal_set_message('GCal Events: simplepie.inc not found!', 'error');
+      return;
+    }
   }
 
   // Make sure that correct version of SimplePie is loaded
