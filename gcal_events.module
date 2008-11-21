@@ -123,7 +123,7 @@ function gcal_events_admin() {
 
   // Input format to use
   $form['gcal_events_input_format'] = array(
-    '#type' => 'radios',
+    '#type' => 'select',
     '#title' => t('Input Format'),
     '#options' => $input_formats,
     '#default_value' => variable_get('gcal_events_input_format', GCAL_EVENTS_DEFAULT_INPUT_FORMAT)
