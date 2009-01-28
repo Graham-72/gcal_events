@@ -637,6 +637,9 @@ function gcal_events_contents($which_block) {
 
     // Hack to make sure all day
     if ($allday) {
+      // Hack to fix bug in google calendar API where incorrect all-day events are returned.
+      if ($today_only && ($date != date("Y-m-d")))
+      { continue; }
       $unixdate = SimplePie_Misc::parse_date($date . " 11:59pm");
     }
     else {
