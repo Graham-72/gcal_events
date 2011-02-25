@@ -1,4 +1,3 @@
-; $Id$
 name = GCal Events
 description = Upcoming events blocks for Google Calendar. 
 package = Date/Time
