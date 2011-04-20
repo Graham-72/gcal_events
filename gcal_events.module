@@ -465,6 +465,13 @@ private calendars will not work.'),
         '#default_value' => variable_get('gcal_events_empty_'. $delta, 'none')
         );
 
+      $form['text']['gcal_events_header'] = array(
+        '#type' => 'textarea',
+        '#title' => t('Header'),
+        '#description' => t('Text to display at the top of this event list.'),
+        '#default_value' => variable_get('gcal_events_header_'. $delta, ''),
+      );
+      
       $form['text']['gcal_events_footer'] = array(
         '#type' => 'textarea',
         '#title' => t('Footer'),
@@ -508,6 +515,7 @@ private calendars will not work.'),
 
       variable_set('gcal_events_today_only_'. $delta, $edit['gcal_events_today_only']);
       variable_set('gcal_events_empty_'. $delta, $edit['gcal_events_empty']);
+      variable_set('gcal_events_header_'. $delta, $edit['gcal_events_header']);
       variable_set('gcal_events_footer_'. $delta, $edit['gcal_events_footer']);
       variable_set('gcal_events_admin_name_'. $delta, check_plain($edit['gcal_events_admin_name']));
       variable_set('gcal_events_template_event_'. $delta, $edit['gcal_events_template_event'], 'gcal_events' );
@@ -544,6 +552,7 @@ function block_reset_defaults($form, &$form_state) {
 
 function gcal_events_delete_block($block_number) {
   variable_del('gcal_events_today_only_'. $block_number);
+  variable_del('gcal_events_header_'. $block_number);
   variable_del('gcal_events_footer_'. $block_number);
   variable_del('gcal_events_admin_name_'. $block_number);
   variable_del('gcal_events_calendar_id_'.$block_number);
@@ -558,6 +567,7 @@ function gcal_events_delete_block($block_number) {
   variable_del('gcal_events_template_time_'. $block_number);
   variable_del('gcal_events_template_loc_'. $block_number);
   variable_del('gcal_events_empty_'. $block_number);
+  variable_del('gcal_events_header_'. $block_number);
   variable_del('gcal_events_footer_'. $block_number);
 }
 
@@ -892,6 +902,8 @@ function theme_gcal_events_contents($gcal_events, $which_block) {
   drupal_add_css($full_path);
 
   $output = "";
+  
+  $output .= variable_get('gcal_events_header_'. $which_block, '');
 
   $use_item_list = variable_get('gcal_events_item_list', '1');
 
