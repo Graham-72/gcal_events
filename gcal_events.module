@@ -606,7 +606,7 @@ function gcal_events_get_events($which_block) {
   $num_events = variable_get('gcal_events_num_events_' . $which_block, GCAL_EVENTS_DEFAULT_NUM_EVENTS);
   gcal_events_debug_block($admin_name, 'Num Events: ' . $num_events );
 
-  foreach (split("[ \n]", $calendar_ids) as $calendar_id) {
+  foreach (preg_split("[ \n]", $calendar_ids) as $calendar_id) {
     $calendar_id = trim($calendar_id);
     // Form the XML address.
     //
@@ -788,6 +788,7 @@ function gcal_events_get_events($which_block) {
 }
 
 function template_events($events, $which_block) {
+	$gcal_events = array();
   foreach ($events as $item) {
 
     // Now, let's run it through some str_replaces, and store it with the date for easy sorting later
@@ -844,11 +845,6 @@ function template_events($events, $which_block) {
     }
     
     $input_format_id = variable_get('gcal_events_input_format', GCAL_EVENTS_DEFAULT_INPUT_FORMAT);
-    $input_format = filter_format_load($input_format_id);
-    if (!filter_access($input_format)) {
-      drupal_set_message(t('Input Format !format is not accessible by the current user', array('format' => $input_format->name)));
-      return "Error: Input format is not accessible";
-    }
 
     // Check for invalid html
     $temp_event = check_markup($temp_event, $input_format_id);
