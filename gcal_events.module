@@ -637,8 +637,7 @@ function gcal_events_get_events($which_block) {
     else {
       array_push($calendar_xml_array, "futureevents=true");
     }
-    // Timezone?
-    //array_push($calendar_xml_array, "ctz=".$timezone);
+    array_push($calendar_xml_array, "ctz=".$timezone);
   
     $calendar_xml_address .= join("&", $calendar_xml_array);
   
