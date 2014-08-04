@@ -613,7 +613,7 @@ function gcal_events_get_events($which_block) {
   $num_events = variable_get('gcal_events_num_events_' . $which_block, GCAL_EVENTS_DEFAULT_NUM_EVENTS);
   gcal_events_debug_block($admin_name, 'Num Events: ' . $num_events );
 
-  foreach (preg_split("[ \n]", $calendar_ids) as $calendar_id) {
+  foreach (preg_split("/[ \n]+/", $calendar_ids) as $calendar_id) {
     $calendar_id = trim($calendar_id);
     // Form the XML address.
     //
