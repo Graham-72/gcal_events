@@ -4,3 +4,5 @@ package = Date/Time
 core = 7.x
 
 files[] = gcal_events.module
+
+dependencies[] = libraries (>=2.x)
