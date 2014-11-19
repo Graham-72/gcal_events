@@ -55,26 +55,6 @@ function gcal_events_permission() {
 	);
 }
 
-/**
- * Implementation of hook_libraries_info().
- */
-function gcal_events_libraries_info() {
-	$libraries['simplepie'] = array(
-		'name' => 'SimplePie',
-		'version' => '1.3.1',
-		'vendor url' => 'http://simplepie.org',
-		'download url' => 'http://simplepie.org/downloads/',
-		'version arguments' => array(
-			'file' => 'simplepie.compiled.php',
-      'pattern' => '@version\s+([0-9a-zA-Z\.-]+)@',
-		),
-		'files' => array(
-			'php' => array('simplepie.compiled.php'),
-		),
-	);
-	return $libraries;
-}
-
 /*
  * administration settings panel
  */
@@ -321,6 +301,7 @@ function gcal_events_block_info() {
   
   for ($index = 0; $index < variable_get('gcal_events_num_blocks', GCAL_EVENTS_DEFAULT_NUM_BLOCKS); $index++) {
     $blocks['gcal_events-' . $index]['info'] = t('GCal Events [' . variable_get('gcal_events_admin_name_' . $index, 'Block ' . ($index+1)) . ']');
+    $blocks['gcal_events-' . $index]['cache'] = DRUPAL_CACHE_GLOBAL;
   }
   
   return $blocks;
@@ -349,6 +330,16 @@ function gcal_events_block_configure($delta) {
     '#type' => 'fieldset',
     '#title' => t('Calendar Settings'),
     '#collapsible' => TRUE
+  );
+  
+  $form['calendar']['gcal_events_developer_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Developer ID'),
+    '#size' => 60,
+    '#maxlength' => 300,
+    '#description' => t('The Developer ID to use when obtaining events for this calendar. See the <a href="@google_calendar">Google Calendar API</a> for more information.', array('@google_calendar' => 'https://developers.google.com/google-apps/calendar/')),
+    '#default_value' => variable_get('gcal_events_developer_id_' . $delta,  ''),
+    '#required' => TRUE,
   );
   
   $form['calendar']['gcal_events_calendar_id'] = array(
@@ -513,6 +504,8 @@ function gcal_events_block_save($delta, $edit) {
   //}
 
   variable_set('gcal_events_calendar_id_' . $delta, $calendar_id);
+  
+  variable_set('gcal_events_developer_id_' . $delta, check_plain($edit['gcal_events_developer_id']));
 
   $private_id = check_plain($edit['gcal_events_private_id']);
   if (preg_match_all('#private-(\S+)/basic#', $private_id, $temp_private_id)) {
@@ -567,6 +560,7 @@ function gcal_events_delete_block($block_number) {
   variable_del('gcal_events_today_only_' . $block_number);
   variable_del('gcal_events_footer_' . $block_number);
   variable_del('gcal_events_admin_name_' . $block_number);
+  variable_del('gcal_events_developer_id_' . $block_number);
   variable_del('gcal_events_calendar_id_' . $block_number);
   variable_del('gcal_events_private_id_' . $block_number);
   variable_del('gcal_events_num_events_' . $block_number);
@@ -596,13 +590,15 @@ function gcal_events_get_events($which_block) {
 
   $gcal_events = array();
 
-  $private_id = variable_get('gcal_events_private_id_' . $which_block, ''); 
-  $calendar_ids = variable_get('gcal_events_calendar_id_' . $which_block, '');
+  $private_id = variable_get('gcal_events_private_id_' . $which_block, '');
+  $developer_id = variable_get('gcal_events_developer_id_' . $which_block, '');
+  $calendar_id = variable_get('gcal_events_calendar_id_' . $which_block, '');
   $today_only = variable_get('gcal_events_today_only_' . $which_block, '');
+  $max_results = variable_get('gcal_events_num_events_' . $which_block, GCAL_EVENTS_DEFAULT_NUM_EVENTS);
 
   $admin_name = variable_get('gcal_events_admin_name_' . $which_block, 'Block ' . ($which_block+1));
 
-  if ($calendar_ids == "") {
+  if ($calendar_id == "") {
     drupal_set_message(t('GCal Events[!admin_name] Calendar ID Not Set!', array('!admin_name' => $admin_name)), 'error');
     return;
   }
@@ -611,184 +607,89 @@ function gcal_events_get_events($which_block) {
   $timezone = variable_get('gcal_events_timezone', GCAL_EVENTS_DEFAULT_TIMEZONE);
   if (!date_default_timezone_set($timezone)) {
     drupal_set_message(t('GCal Events: Timezone !timezone is not valid!', array('!timezone' => $timezone)));
-  } 
-
-  // How you want each thing to display.
-  // 
-  // #TITLE#
-  // #DATE#
-  // #TIME#
-  // #ENDTIME#
-  // #URL#
-  // #LOC#
-  // #DESC#
-  
-  if (($library = libraries_load('simplepie')) && !empty($library['loaded'])) {
-    // Can do something here if needed in the future.
   }
   
-  //Where your simplepie.inc is (mine's in the root for some reason)
-  if (!class_exists('SimplePie')) {
-    if (!include_once(drupal_get_path('module', 'gcal_events') . '/simplepie.inc')) {
-      drupal_set_message(t('GCal Events: simplepie.inc not found! Make sure you have simplepie installed and have copied simplepie.inc to the gcal_events directory.'), 'error');
-      return;
-    }
+  $dateformat = variable_get('gcal_events_dateformat_' . $which_block, '');
+  if ($dateformat == "") {
+  	$dateformat = variable_get('gcal_events_dateformat', GCAL_EVENTS_DEFAULT_DATE_FORMAT);
   }
 
-  // Make sure that correct version of SimplePie is loaded
-  if (SIMPLEPIE_VERSION < 1) {
-    drupal_set_message(t('SimplePie v1.0 or above required for GCal Events'), 'error');
+  $timeformat = variable_get('gcal_events_timeformat_' . $which_block, '');
+  if ($timeformat == "") {
+    $timeformat = variable_get('gcal_events_timeformat', GCAL_EVENTS_DEFAULT_TIME_FORMAT);
+  }
+
+  // Including the google-api-php-client library (required).
+  $autoload_path = libraries_get_path('google-api-php-client') . '/autoload.php';
+  if (!file_exists($autoload_path)) {
+    drupal_set_message('GCal Events: The google-api-php-client library was not found.', 'error');
+    return;
+  }
+  include_once($autoload_path);
+  
+  // https://developers.google.com/google-apps/calendar/v3/reference
+  $client = new Google_Client();
+  $client->setApplicationName('gcal_events_feed');
+  $client->setDeveloperKey($developer_id);
+
+  $service = new Google_Service_Calendar($client);
+  $optParams = array(
+    'orderBy' => 'startTime',
+    'singleEvents' => 'true',
+    'timeMin' => date('Y-m-d') . 'T00:00:00' . date('P'),
+    'timeZone' => $timezone,
+  );
+
+  if ($today_only) {
+    $optParams['timeMax'] = date('Y-m-d') . 'T23:59:00' . date('P');
+  }
+
+  try {
+    $events = $service->events->listEvents($calendar_id, $optParams);
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('GCal Events: Bad call to list events'), 'error');
     return;
   }
 
-  gcal_events_debug('Simplepie version ' . SIMPLEPIE_VERSION);
-
-  $events = array();
-
-  $num_events = variable_get('gcal_events_num_events_' . $which_block, GCAL_EVENTS_DEFAULT_NUM_EVENTS);
-  gcal_events_debug_block($admin_name, 'Num Events: ' . $num_events );
-
-  foreach (preg_split("/[ \n]+/", $calendar_ids) as $calendar_id) {
-    $calendar_id = trim($calendar_id);
-    // Form the XML address.
-    //
-    // http://code.google.com/apis/calendar/docs/2.0/reference.html
-
-    $public_private = "public";
-    if ($private_id != "") {
-      $public_private = "private-" . $private_id;
+  $temp = array();
+  $count = 0;
+  
+  foreach ($events->getItems() as $event) {
+    if ($count >= $max_results) {
+      break;
     }
-    $calendar_xml_address = "http://www.google.com/calendar/feeds/" . $calendar_id . "/" . $public_private . "/full?";
-    $calendar_xml_array = array();
-    array_push($calendar_xml_array, "max-results=$num_events", "orderby=starttime", "singleevents=true");
-    array_push($calendar_xml_array, "sortorder=ascending");  
+    
+    $event_id = $event->getId();
+    $event = $service->events->get($calendar_id, $event_id);
 
-    // If you only want events from today, set the start-min, start-max
-    if ($today_only) {
-      //array_push($calendar_xml_array, "start-min=".date("Y-m-d"), "start-max=".date("Y-m-d",strtotime("+1 day")));
-      array_push($calendar_xml_array, "start-min=" . date("Y-m-d") . "T00:00:00" . date("P") );
-      array_push($calendar_xml_array, "start-max=" . date("Y-m-d") . "T23:59:00" . date("P") );
+    $title = trim($event->getSummary());
+    $description = $event->getDescription();
+    $allday = !empty($start->date);
+    $location = $event->getLocation();
+    $status = $event->getStatus();
+
+    $start = $event->getStart();
+    $date = !empty($start->date) ? $start->date : $start->dateTime;
+    $unixdate = strtotime($date);
+    $formatted_date = format_date($unixdate, 'custom', $dateformat);
+
+    if (strlen($title) > 1 && $status != 'canceled' && strlen($date) > 0) {
+      $temp[] = array(
+        'title' => $title,
+        'description' => $description,
+        'allday' => $allday,
+        'where' => $location,
+        'date' => $formatted_date,
+        'link' => '', // TODO
+      );
     }
-    else {
-      array_push($calendar_xml_array, "futureevents=true");
-    }
-    array_push($calendar_xml_array, "ctz=".$timezone);
+    $count++;
+  }
   
-    $calendar_xml_address .= join("&", $calendar_xml_array);
-  
-    // Let's create a new SimplePie object
-    $feed = new SimplePie();
-
-    // Cache location for your XML file 
-    $cache_location=variable_get('gcal_events_cache', GCAL_EVENTS_DEFAULT_CACHE);
-    if ($cache_location=="") {
-      // Cache disabled
-      $feed->enable_cache(false);
-      drupal_set_message(t('GCal Events: WARNING: Cache Disabled'));
-    }
-    else {
-      if (!is_writeable($cache_location)) {
-        drupal_set_message(t('GCal Events: Cache directory not writeable. Caching is disabled.'), 'error');
-        $feed->enable_cache(false);
-      }
-      else {
-        $cache_duration = variable_get('gcal_events_cache_duration', GCAL_EVENTS_DEFAULT_CACHE_DURATION);
-        $feed->enable_cache(true); // Default
-        $feed->set_cache_duration($cache_duration);
-        gcal_events_debug('Cache is set to ' . $cache_location);
-        gcal_events_debug('Cache duration is ' . $cache_duration . ' seconds');
-      }
-    }
-
-    // Set the cache location
-    $feed->set_cache_location($cache_location);
-
-    // This is the feed we'll use
-    $feed->set_feed_url($calendar_xml_address);
-    gcal_events_debug_block($admin_name, '<a href=' . $calendar_xml_address . '>FeedURL</A>');
-
-    // Let's turn this off because we're just going to re-sort anyways, and there's no reason to waste CPU doing it twice.
-    $feed->enable_order_by_date(false);
-
-    // Initialize the feed so that we can use it.
-    $time_feed_init = microtime(true);
-    $feed->init();
-    gcal_events_debug_block($admin_name, 'Feed Init took ' . round((microtime(true) - $time_feed_init), 2) . ' seconds');
-  
-    if ($feed->error()) {
-      drupal_set_message(t('GCal Events [!admin_name] error', array('!admin_name' => $feed->error())), 'error');
-      return;
-    }
-  
-    // Make sure the content is being served out to the browser properly.
-    $feed->handle_content_type();
-  
-    $time_feed_process = microtime(true);
-    foreach ($feed->get_items() as $item) {
-      // We want to grab the Google-namespaced <gd:when> tag.
-      $when = $item->get_item_tags('http://schemas.google.com/g/2005', 'when');
-  
-      // Now, let's grab the Google-namespaced <gd:where> tag.
-      $gd_where = $item->get_item_tags('http://schemas.google.com/g/2005', 'where');
-      $location = $gd_where[0]['attribs']['']['valueString'];
-  
-      //and the status tag too, come to that
-      $gd_status = $item->get_item_tags('http://schemas.google.com/g/2005', 'eventStatus');
-      $status = substr( $gd_status[0]['attribs']['']['value'], -8);
-  
-      $date = $when[0]['attribs']['']['startTime'];  
-      $enddate = $when[0]['attribs']['']['endTime'];
-
-      gcal_events_debug_block_2($admin_name, "Date from google feed is $date");
-
-      $allday = strlen($date)<11;
-  
-      // Hack to make sure all day
-      if ($allday) {
-        // Hack to fix bug in google calendar API where incorrect all-day events are returned.
-        if ($today_only && ($date != date("Y-m-d"))) { 
-          continue;
-        }
-        $unixdate = SimplePie_Misc::parse_date($date . " 11:59pm");
-      }
-      else {
-        $unixdate = SimplePie_Misc::parse_date($date);
-      }
-      if ($unixdate == 0) {
-        gcal_events_debug_block_2($admin_name, "Either the date is actually Jan 1 1970 or SimplePie_Misc::parse_date() is returning the wrong date. date: $date, unixdate: $unixdate");
-      }
-  
-      $where = $item->get_item_tags('http://schemas.google.com/g/2005', 'where');
-      $location = $where[0]['attribs']['']['valueString'];
-      
-      $dateformat = variable_get('gcal_events_dateformat_'. $which_block, "");
-      if ($dateformat == "") {
-      	$dateformat = variable_get('gcal_events_dateformat', GCAL_EVENTS_DEFAULT_DATE_FORMAT);
-      }
-   
-      $timeformat = variable_get('gcal_events_timeformat_' . $which_block, "");
-      if ($timeformat == "") {
-        $timeformat = variable_get('gcal_events_timeformat', GCAL_EVENTS_DEFAULT_TIME_FORMAT);
-      }
-
-      if (!$allday) {
-        $gcal_time = date($timeformat, $unixdate);
-        $gcal_endtime = date($timeformat, SimplePie_Misc::parse_date($enddate));
-      }
-      else {
-        $gcal_time = "all day";
-        $gcal_endtime = date($dateformat, SimplePie_Misc::parse_date($enddate));
-        
-        if ($gcal_endtime == date($dateformat, $unixdate)) {
-        	$gcal_endtime = "";
-        }
-        // $gcal_time=""; // to have no output for all-day events
-        //$item['title'] = $item['title'] . " (all day)"; // to tag the title with "(all-day)"
-      }
- 
-      $gcal_date = date($dateformat, $unixdate);
- 
-      if (strlen(trim($item->get_title()))>1 && $status != "canceled" && strlen(trim($date)) > 0) {
+  /*
+  left in as reminder
+       if (strlen(trim($item->get_title()))>1 && $status != "canceled" && strlen(trim($date)) > 0) {
             $events[] = array(
               'timestamp' => $unixdate,
               'time' => $gcal_time,
@@ -804,35 +705,14 @@ function gcal_events_get_events($which_block) {
               'thisweek' => (date("Y-W") == date("Y-W", $unixdate)),
               'thismonth' => (date("Y-m") == date("Y-m", $unixdate))
           );
-
-        gcal_events_debug_block_2($admin_name, "Title: " . $item->get_title());
-        gcal_events_debug_block_2($admin_name, "Date: " . $gcal_date);
-        gcal_events_debug_block_2($admin_name, "Time: " . $gcal_time);
-        gcal_events_debug_block_2($admin_name, "End Time: " . $gcal_endtime);
-        gcal_events_debug_block_2($admin_name, "Timestamp: " . $unixdate . " (" . date("Y-m-d", $unixdate) . ")");
-        gcal_events_debug_block_2($admin_name, "Location: " . $location);
-        gcal_events_debug_block_2($admin_name, "Desc: " . $item->get_description());
-        gcal_events_debug_block_2($admin_name, "Link: <a href=\"" . $item->get_link() . "\">URL</A>");       
-      }
-    }
-    gcal_events_debug("PHP Memory Usage: " . round(memory_get_usage(FALSE)/1024/1024, 1 ) . "MB");
-    gcal_events_debug("PHP Memory Usage (real): " . round(memory_get_usage(TRUE)/1024/1024, 1 ) . "MB");
-
-    // Fix for PHP/SimplePie memory leak. Especially needed for handling
-    // multiple feeds in a single block.
-    $feed->__destruct(); // Do what PHP should be doing on it's own.
-    unset($feed);
   }
-  //Sort this
-  sort($events);
+  */
 
-  gcal_events_debug_block($admin_name, 'Feed processing took ' . round((microtime(true) - $time_feed_process), 2) . ' seconds');
-
-  return array_slice($events, 0, $num_events);
+  return $temp;
 }
 
 function template_events($events, $which_block) {
-	$gcal_events = array();
+  $gcal_events = array();
   foreach ($events as $item) {
 
     // Now, let's run it through some str_replaces, and store it with the date for easy sorting later
