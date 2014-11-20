@@ -665,12 +665,15 @@ function gcal_events_get_events($which_block) {
 
     $title = trim($event->getSummary());
     $description = $event->getDescription();
-    $allday = !empty($start->date);
     $location = $event->getLocation();
     $status = $event->getStatus();
 
     $start = $event->getStart();
+    $end = $event->getEnd();
+    $allday = !empty($start->date);
     $date = !empty($start->date) ? $start->date : $start->dateTime;
+    $gcal_time = !empty($start->dateTime) ? format_date($start->dateTime, 'custom', $timeformat) : '';
+    $gcal_endtime = !empty($end->dateTime) ? format_date($end->dateTime, 'custom', $timeformat) : '';
     $unixdate = strtotime($date);
     $formatted_date = format_date($unixdate, 'custom', $dateformat);
 
@@ -681,32 +684,18 @@ function gcal_events_get_events($which_block) {
         'allday' => $allday,
         'where' => $location,
         'date' => $formatted_date,
-        'link' => '', // TODO
+        'time' => $gcal_time,
+        'endtime' => $gcal_endtime,
+        'timestamp' => $unixdate,
+        'link' => '', // TODO,
+        'today' => date("Y-m-d") == date("Y-m-d", $unixdate),
+        'tomorrow' => (date("Y-m-d", strtotime("+1 day")) == date("Y-m-d", $unixdate)),
+        'thisweek' => (date("Y-W") == date("Y-W", $unixdate)),
+        'thismonth' => (date("Y-m") == date("Y-m", $unixdate)),
       );
     }
     $count++;
   }
-  
-  /*
-  left in as reminder
-       if (strlen(trim($item->get_title()))>1 && $status != "canceled" && strlen(trim($date)) > 0) {
-            $events[] = array(
-              'timestamp' => $unixdate,
-              'time' => $gcal_time,
-              'endtime' => $gcal_endtime,
-              'date' => $gcal_date,
-              'allday' => $allday,
-              'where' => $location,
-              'title' => $item->get_title(),
-              'description' => $item->get_description(),
-              'link' => $item->get_link(),
-              'today' => date("Y-m-d") == date("Y-m-d", $unixdate),
-              'tomorrow' => (date("Y-m-d", strtotime("+1 day")) == date("Y-m-d", $unixdate)),
-              'thisweek' => (date("Y-W") == date("Y-W", $unixdate)),
-              'thismonth' => (date("Y-m") == date("Y-m", $unixdate))
-          );
-  }
-  */
 
   return $temp;
 }
