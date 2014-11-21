@@ -2,17 +2,34 @@ GCal Events Documentation
 
 To install:
 
-1). untar into modules directory (sites/all/modules)
-2). Download SimplePie (http://simplepie.org/)
-3). Copy simplepie.inc into the modules/gcal_events directory
-4). Create a cache directory that is writeable by the webserver (defaults to modules/gcal_events/cache)
+1. Download this module
+2. Extract this module
+3. Upload this module to your website
+4. Enable this module
+
+See https://www.drupal.org/documentation/install/modules-themes/modules-5-6 if you need more help.
 
 To configure:
 
-1). Enable the module in Drupal
-2). In the module configuration, set the cache directory and number of blocks to display
-3). In the block configuration screen, configure block 0. Get the Calendar ID from google calendar.
-4). Still in the block configuration screen, set the block to an active region and save
+Get a Google Developer ID key
+1. Navigate to https://code.google.com/apis/console.
+2. Create a project and turn on the Calendar API (agree to the TOS).
+3. Navigate to "Credentials" in the left menu under "APIs & auth".
+4. Create a new key (server key) if you don't already have one.
+5 .Once it's created, it'll display on that page. Copy the "API KEY" and save it for later.
+
+Get the Google API Client Library for PHP
+1. Navigate to https://github.com/google/google-api-php-client and clone the master branch.
+2. Rename that cloned directory "google-api-php-client" and move it to sites/all/libraries.
+
+Configure your GCal Events blocks
+1. In the module configuration page, set the number of blocks to display.
+2. In the block configuration screen, configure block 0.
+3. Get the Calendar ID from google calendar and input as the calendar ID.
+4. Put the API Key you created into the "Developer ID" field.
+5. Still in the block configuration screen, set the block to an active region and save.
+6. Also check to make sure you have block caching enabled on the performance settings for your Drupal site.
+   This will help keep you below the quota limits for the free API account.
 
 DONE!
 
