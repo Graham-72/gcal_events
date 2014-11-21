@@ -672,8 +672,13 @@ function gcal_events_get_events($which_block) {
     $end = $event->getEnd();
     $allday = !empty($start->date);
     $date = !empty($start->date) ? $start->date : $start->dateTime;
-    $gcal_time = !empty($start->dateTime) ? format_date($start->dateTime, 'custom', $timeformat) : '';
-    $gcal_endtime = !empty($end->dateTime) ? format_date($end->dateTime, 'custom', $timeformat) : '';
+    $gcal_time = !empty($start->dateTime) ? format_date(strtotime($start->dateTime), 'custom', $timeformat) : '';
+    if ($allday) {
+      $gcal_endtime = !empty($end->date) ? format_date(strtotime($end->date), 'custom', $dateformat) : '';
+    }
+    else {
+      $gcal_endtime = !empty($end->dateTime) ? format_date(strtotime($end->dateTime), 'custom', $timeformat) : '';
+    }
     $unixdate = strtotime($date);
     $formatted_date = format_date($unixdate, 'custom', $dateformat);
 
