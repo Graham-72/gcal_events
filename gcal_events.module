@@ -680,6 +680,7 @@ function gcal_events_get_events($which_block) {
       $gcal_endtime = !empty($end->dateTime) ? format_date(strtotime($end->dateTime), 'custom', $timeformat) : '';
     }
     $unixdate = strtotime($date);
+    $link = $event->getHtmlLink();
     $formatted_date = format_date($unixdate, 'custom', $dateformat);
 
     if (strlen($title) > 1 && $status != 'canceled' && strlen($date) > 0) {
@@ -692,7 +693,7 @@ function gcal_events_get_events($which_block) {
         'time' => $gcal_time,
         'endtime' => $gcal_endtime,
         'timestamp' => $unixdate,
-        'link' => '', // TODO,
+        'link' => $link,
         'today' => date("Y-m-d") == date("Y-m-d", $unixdate),
         'tomorrow' => (date("Y-m-d", strtotime("+1 day")) == date("Y-m-d", $unixdate)),
         'thisweek' => (date("Y-W") == date("Y-W", $unixdate)),
